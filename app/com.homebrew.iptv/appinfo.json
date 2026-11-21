@@ -1,0 +1,15 @@
+{
+  "id": "com.homebrew.iptv",
+  "version": "1.0.0",
+  "vendor": "Created by aning and Cipher Amir with Claude",
+  "type": "web",
+  "main": "index.html",
+  "title": "IPTV Player",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "bgColor": "#000000",
+  "iconColor": "#0038A8",
+  "resolution": "1920x1080",
+  "disableBackHistoryAPI": true,
+  "handlesRelaunch": true
+}

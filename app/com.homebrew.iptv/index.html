@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<!-- IPTV Player for webOS. Created by aning and Cipher Amir with Claude. -->
+<title>IPTV Player</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<video id="video" playsinline></video>
+
+<div id="status" class="hidden"><div class="spinner"><div class="ring"></div><div class="sun"><i></i><i></i><i></i><i></i><b></b></div><span class="star s1"></span><span class="star s2"></span><span class="star s3"></span></div><div id="status-text"></div></div>
+
+<div id="banner" class="hidden">
+  <div class="logo"></div>
+  <div class="info">
+    <div class="top"><span id="b-num"></span><span id="b-name"></span><span id="b-fav" class="fav hidden">★</span></div>
+    <div class="sub"><span id="b-group"></span><span id="b-state"></span></div>
+  </div>
+  <div id="b-clock"></div>
+  <div class="keys">OK channels · ▲▼ change · 0-9 number · ■ Yellow favorite · ■ Blue settings</div>
+</div>
+
+<div id="list" class="hidden">
+  <div class="head"><span class="arrow">◀</span><span id="l-group"></span><span class="arrow">▶</span></div>
+  <div id="l-items"></div>
+  <div class="foot">▲▼ choose · OK watch · ◀▶ category · Yellow ★ favorite · Back close</div>
+</div>
+
+<div id="numentry" class="hidden"></div>
+
+<div id="settings" class="dialog hidden"><div class="box">
+  <h2>Settings</h2>
+  <label>Playlist URL (M3U) <small>leave empty for the built-in channels</small>
+    <input id="s-url" class="f" data-row="0" type="url" autocapitalize="off" spellcheck="false" placeholder="https://…/playlist.m3u"></label>
+  <div class="buttons">
+    <button id="s-save" class="f primary" data-row="1">Save &amp; load</button>
+    <button id="s-builtin" class="f" data-row="1">Use built-in channels</button>
+    <button id="s-close" class="f" data-row="1">Close</button>
+  </div>
+  <div class="buttons">
+    <button id="s-scan" class="f" data-row="2">Scan for new English channels</button>
+    <button id="s-unscan" class="f hidden" data-row="2">Remove scanned channels</button>
+  </div>
+  <div id="scan-status"></div>
+  <p class="credits">IPTV Player · Created by aning and Cipher Amir with Claude · v<span id="ver"></span></p>
+</div></div>
+
+<div id="toast" class="hidden"></div>
+
+<script src="channels.js"></script>
+<script src="lib/hls.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
