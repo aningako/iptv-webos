@@ -69,31 +69,39 @@ def read_source(url, keys, guide, now):
     print('reading', url)
     raw = urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=600)
     stream = gzip.GzipFile(fileobj=raw) if url.endswith('.gz') else raw
-    id2key, added, chans, taken = {}, 0, 0, set()
+    PRIO = ['ph', 'us', 'uk', 'sg', 'au', 'ca', 'nz', 'ie', 'my', 'in']   # prefer listings from these countries
+    def prio(cid):
+        cc = (cid or '').rsplit('.', 1)[-1].lower()
+        return PRIO.index(cc) if cc in PRIO else len(PRIO)
+    id2key, cand, progs = {}, {}, {}
     for ev, el in ET.iterparse(stream, events=('end',)):
         if el.tag == 'channel':
             for dn in el.findall('display-name'):
                 k = norm_key(dn.text or '')
-                if k in keys and k not in guide and k not in taken:   # first source (and first feed) with that name wins
-                    id2key[el.get('id')] = k; taken.add(k); chans += 1; break
+                if k in keys and k not in guide:              # first source with a channel wins
+                    cand.setdefault(k, []).append(el.get('id')); id2key[el.get('id')] = k; break
             el.clear()
         elif el.tag == 'programme':
-            k = id2key.get(el.get('channel'))
-            if k:
+            cid = el.get('channel')
+            if cid in id2key:
                 start, stop = xmltv_time(el.get('start')), xmltv_time(el.get('stop'))
                 if start and stop and stop > now - BEFORE and start < now + AFTER:
                     title = (el.findtext('title') or '').strip()
                     if title:
-                        guide.setdefault('_new_' + k, []).append([start, stop, title[:80]])
-                        added += 1
+                        progs.setdefault(cid, []).append([start, stop, title[:80]])
             el.clear()
+    chans = added = 0
+    for k, ids in cand.items():                               # per name: best country with real listings
+        for cid in sorted(ids, key=prio):
+            if len(progs.get(cid, [])) >= 2:
+                guide['_new_' + k] = progs[cid]; chans += 1; added += len(progs[cid]); break
     for k in list(guide):
         if k.startswith('_new_'):
-            progs, last = [], 0
-            for p in sorted(guide.pop(k)):                # drop overlapping/duplicate entries
+            out, last = [], 0
+            for p in sorted(guide.pop(k)):                    # drop overlapping/duplicate entries
                 if p[0] >= last - 60:
-                    progs.append(p); last = p[1]
-            guide[k[5:]] = progs[:PER_CHANNEL]
+                    out.append(p); last = p[1]
+            guide[k[5:]] = out[:PER_CHANNEL]
     print('  channels matched: %d, programmes kept: %d' % (chans, added))
 
 
