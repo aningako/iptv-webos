@@ -13,18 +13,18 @@
       "manifestUrl": "https://raw.githubusercontent.com/aningako/iptv-webos/main/repo/manifest.json",
       "manifest": {
         "id": "com.homebrew.iptv",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "type": "web",
         "title": "IPTV Player",
         "appDescription": "IPTV player for LG webOS TVs: free Philippine, English movie and news channels in 1080p, channel list with categories and favorites, scan for new English channels, Philippine flag theme. Created by aning and Cipher Amir with Claude.",
         "iconUri": "https://raw.githubusercontent.com/aningako/iptv-webos/main/app/com.homebrew.iptv/largeIcon.png",
         "sourceUrl": "https://github.com/aningako/iptv-webos",
         "rootRequired": false,
-        "ipkUrl": "https://github.com/aningako/iptv-webos/releases/download/v1.0.0/com.homebrew.iptv_1.0.0_all.ipk",
+        "ipkUrl": "https://github.com/aningako/iptv-webos/releases/download/v1.1.0/com.homebrew.iptv_1.1.0_all.ipk",
         "ipkHash": {
-          "sha256": "cedc9efa8fc825507e9591a19e70ff38161b3f73a6a91266302daacd98fe2f8c"
+          "sha256": "af6a70d0fd84af8eb6a3ce7ac5a5cf034008d1abd6cd274e970fd69b20396795"
         },
-        "ipkSize": 2922332
+        "ipkSize": 2924910
       },
       "requirements": {
         "webosRelease": ">=5.0"
