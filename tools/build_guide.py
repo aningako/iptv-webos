@@ -19,7 +19,7 @@ SOURCES = [
 ]
 CHANNEL_LISTS = [os.path.join(ROOT, 'app', 'com.homebrew.iptv', 'channels.m3u'),
                  'https://iptv-org.github.io/iptv/languages/eng.m3u']   # built-in + what the scan can add
-BEFORE, AFTER, PER_CHANNEL = 3600, 20 * 3600, 40
+BEFORE, AFTER, PER_CHANNEL = 3600, 20 * 3600, 160   # window decides; the cap only guards against junk
 UA = {'User-Agent': 'Mozilla/5.0 (IPTV Player guide builder)'}
 
 
@@ -47,7 +47,7 @@ def wanted_keys():
 
 def xmltv_time(s):
     # 20261121143000 +0800
-    m = re.match(r'(\d{14})\s*([+-]\d{4})?', s or '')
+    m = re.match(r'(\d{14})\s*([+-]\d{2}:?\d{2})?', s or '')
     if not m:
         return None
     d = m.group(1)
@@ -55,7 +55,7 @@ def xmltv_time(s):
         secs = _timegm((int(d[0:4]), int(d[4:6]), int(d[6:8]), int(d[8:10]), int(d[10:12]), int(d[12:14]), 0, 0, 0))
     except Exception:
         return None                                   # malformed time: skip that programme
-    off = m.group(2) or '+0000'
+    off = (m.group(2) or '+0000').replace(':', '')
     sign = 1 if off[0] == '+' else -1
     return secs - sign * (int(off[1:3]) * 3600 + int(off[3:5]) * 60)
 
@@ -73,8 +73,12 @@ def read_source(url, keys, guide, now):
     def prio(cid):
         cc = (cid or '').rsplit('.', 1)[-1].lower()
         return PRIO.index(cc) if cc in PRIO else len(PRIO)
-    id2key, cand, progs = {}, {}, {}
-    for ev, el in ET.iterparse(stream, events=('end',)):
+    id2key, cand, progs, root = {}, {}, {}, None
+    try:
+      for ev, el in ET.iterparse(stream, events=('start', 'end')):
+        if ev == 'start':
+            if root is None: root = el
+            continue
         if el.tag == 'channel':
             for dn in el.findall('display-name'):
                 k = norm_key(dn.text or '')
@@ -90,6 +94,9 @@ def read_source(url, keys, guide, now):
                     if title:
                         progs.setdefault(cid, []).append([start, stop, title[:80]])
             el.clear()
+            root.clear()                                      # keep memory flat on a 1.9 GB stream
+    except (ET.ParseError, EOFError, OSError) as e:           # cut-off or broken file: keep what was read
+        print('  stopped early (%s); keeping what was read' % e)
     chans = added = 0
     for k, ids in cand.items():                               # per name: best country with real listings
         for cid in sorted(ids, key=prio):
@@ -115,6 +122,20 @@ def main():
             read_source(url, keys, guide, now)
         except Exception as e:
             print('  source failed:', e)
+    fresh = len(guide)
+    if not fresh:
+        sys.exit('no listings from any source; keeping the previous guide')
+    # channels this run couldn't refresh keep their still-valid listings from the previous guide
+    try:
+        old = json.load(open(OUT)).get('channels', {})
+        kept = 0
+        for k, progs in old.items():
+            if k not in guide:
+                left = [p for p in progs if p[1] > now]
+                if left: guide[k] = left; kept += 1
+        print('carried over from the previous guide: %d channels' % kept)
+    except Exception:
+        pass
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, 'w') as f:
         json.dump({'generated': now, 'channels': guide}, f, separators=(',', ':'), ensure_ascii=False)

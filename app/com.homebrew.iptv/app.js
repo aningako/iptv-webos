@@ -68,7 +68,7 @@
   var channels = [], groups = [], favs = load('favs', []), cur = -1;
   // Channels that didn't play are hidden everywhere (list, ▲▼, numbers) and tried again after a day.
   var HIDE_MS = 24 * 3600 * 1000, deadMap = load('dead', {});
-  function shownCh(ch) { return !(deadMap[ch.name] && Date.now() - deadMap[ch.name] < HIDE_MS); }
+  function shownCh(ch) { return !(deadMap[ch.name] && Date.now() - deadMap[ch.name] < HIDE_MS) && !(typeof tempHidden !== 'undefined' && tempHidden[ch.name]); }
   function groupList() {
     var gs = ['All channels'];
     var vis = channels.filter(shownCh);
@@ -83,7 +83,8 @@
   // Free the hardware decoder before anything else: on webOS a stream stuck "loading" keeps it otherwise,
   // and then no other channel can start until the app is closed.
   function unload() {
-    clearTimeout(watchTm);
+    tuneTok++;                                           // cancels a tune still loading (it checks tuneTok)
+    clearTimeout(watchTm); clearTimeout(stallTm);
     if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
     try { video.pause(); video.removeAttribute('src'); video.load(); } catch (e) {}
   }
@@ -99,7 +100,8 @@
     return a;
   }
   function tune(idx, keepBanner) {
-    if (!channels.length || !channels.some(shownCh)) return setStatus('No channels are playing right now.\nRed reloads the list.', true);
+    if (channels.length && !channels.some(shownCh)) { deadMap = {}; tempHidden = {}; save('dead', deadMap); }   // everything hidden: start over
+    if (!channels.length) return setStatus('No channels in the list.\nBlue → Settings → Reload channels.', true);
     var dir = idx < cur ? -1 : 1;
     idx = (idx + channels.length) % channels.length;
     while (!shownCh(channels[idx])) idx = (idx + dir + channels.length) % channels.length;   // hidden (not playing) channels are skipped
@@ -143,8 +145,9 @@
   }
 
   function startAttempt() {
-    var a = attempt, tok = ++tuneTok;
+    var a = attempt;
     unload();
+    var tok = tuneTok;
     if (!a || a.i >= a.list.length) return giveUp();
     var step = a.list[a.i], s = a.ch.sources[step.src];
     setStatus('Loading ' + a.ch.name + '…' + (a.ch.sources.length > 1 ? '  (source ' + (step.src + 1) + ' of ' + a.ch.sources.length + ')' : ''), false);
@@ -173,22 +176,48 @@
     });
   }
   function play() { var p = video.play(); if (p && p.catch) p.catch(function () {}); }
-  function next() { if (!attempt) return; attempt.i++; startAttempt(); }
+  function next() {
+    if (!attempt) return;
+    if (attempt.played && !attempt.retried) { attempt.retried = true; attempt.played = false; return startAttempt(); }   // was playing: one retry
+    attempt.i++; startAttempt();
+  }
+  // A channel that fails is first only skipped for this session (tempHidden). It is hidden for a day (deadMap) once
+  // another channel has played, which shows the internet is fine. 3 failures in a row = probably no internet:
+  // stop, hide nothing, and let OK try again.
+  var failStreak = 0, pendingDead = [], tempHidden = {};
   function giveUp() {
     unload();
     var ch = attempt && attempt.ch;
     if (!ch) return;
-    deadMap[ch.name] = Date.now(); save('dead', deadMap);           // hide it and move on to the next channel
+    failStreak++;
+    if (failStreak >= 3 || navigator.onLine === false) {
+      failStreak = 0; pendingDead = []; tempHidden = {};
+      attempt.stuck = true;
+      setStatus(ch.name + ' isn’t playing.\nThe internet connection may be down. OK tries again · ▲▼ other channels', true);
+      setState('Not playing', 'bad'); showBanner();
+      return;
+    }
+    pendingDead.push(ch.name); tempHidden[ch.name] = 1;
     toast(ch.name + ' isn’t playing, skipped', 2500);
     tune(cur + (attempt.dir || 1));
   }
+  var stallTm;
   video.addEventListener('playing', function () {
-    clearTimeout(watchTm);
+    clearTimeout(watchTm); clearTimeout(stallTm);
+    failStreak = 0;
+    if (attempt) attempt.played = true;
+    if (pendingDead.length) { pendingDead.forEach(function (n) { deadMap[n] = Date.now(); }); pendingDead = []; save('dead', deadMap); }
     if (attempt && deadMap[attempt.ch.name]) { delete deadMap[attempt.ch.name]; save('dead', deadMap); }
     setStatus(null); setState('● Live' + (video.videoHeight ? ' · ' + video.videoHeight + 'p' : ''), 'live');
   });
   video.addEventListener('resize', function () { if (!video.paused && video.videoHeight && /Live/.test($('b-state').textContent)) setState('● Live · ' + video.videoHeight + 'p', 'live'); });
-  video.addEventListener('waiting', function () { if (attempt && video.readyState < 3) setStatus('Buffering…', false); });
+  video.addEventListener('waiting', function () {
+    if (!attempt || video.readyState >= 3) return;
+    setStatus('Buffering…', false);
+    var tok = tuneTok; clearTimeout(stallTm);
+    stallTm = setTimeout(function () { if (tok === tuneTok && video.readyState < 3) { toast('Reconnecting…', 2000); tune(cur); } }, 20000);   // stalled: reconnect
+  });
+  video.addEventListener('ended', function () { if (attempt) tune(cur); });        // a live stream that "ended": reconnect
   video.addEventListener('error', function () { if (video.getAttribute('src') && !hls) next(); });
   addEventListener('pagehide', unload);
   document.addEventListener('visibilitychange', function () {
@@ -281,7 +310,7 @@
     if (k === K.UP) { gf = (gf - 1 + n) % n; renderGuide(); }
     else if (k === K.DOWN) { gf = (gf + 1) % n; renderGuide(); }
     else if (k === K.CH_UP || k === K.CH_UP2) { gf = Math.max(0, gf - GROWS); renderGuide(); }
-    else if (k === K.CH_DOWN || k === K.CH_DOWN2) { gf = Math.min(items.length - 1, gf + GROWS); renderGuide(); }
+    else if (k === K.CH_DOWN || k === K.CH_DOWN2) { gf = Math.max(0, Math.min(items.length - 1, gf + GROWS)); renderGuide(); }
     else if (k === K.LEFT || k === K.RIGHT) { gg = (gg + (k === K.RIGHT ? 1 : -1) + groups.length) % groups.length; gf = 0; renderGuide(); }
     else if (k === K.OK) { var ch = items[gf]; if (ch) { closeGuide(); tune(channels.indexOf(ch)); } }
     else if (k === K.BACK || k === K.ESC || k === K.RED || k === K.GUIDE) closeGuide();
@@ -362,7 +391,7 @@
     if (k === K.UP) { lf = (lf - 1 + items.length) % Math.max(1, items.length); renderList(); }
     else if (k === K.DOWN) { lf = (lf + 1) % Math.max(1, items.length); renderList(); }
     else if (k === K.CH_UP || k === K.CH_UP2) { lf = Math.max(0, lf - VISIBLE); renderList(); }
-    else if (k === K.CH_DOWN || k === K.CH_DOWN2) { lf = Math.min(items.length - 1, lf + VISIBLE); renderList(); }
+    else if (k === K.CH_DOWN || k === K.CH_DOWN2) { lf = Math.max(0, Math.min(items.length - 1, lf + VISIBLE)); renderList(); }
     else if (k === K.LEFT || k === K.RIGHT) { lg = (lg + (k === K.RIGHT ? 1 : -1) + groups.length) % groups.length; lf = 0; renderList(); }
     else if (k === K.OK) { var ch = items[lf]; if (ch) { closeList(); tune(channels.indexOf(ch)); } }
     else if (k === K.YELLOW) { var c2 = items[lf]; if (c2) toggleFav(c2); groups = groupList(); renderList(); }
@@ -516,8 +545,8 @@
     }).catch(function () { scanning = null; scanLabel(); scanStatus('Couldn’t download the channel lists. Check the internet connection.'); });
   }
   $('s-scan').onclick = startScan;
-  $('s-reload').onclick = function () { closeSettings(); loadPlaylist(true); loadGuide(); };
-  $('s-unscan').onclick = function () { found = []; save('found', found); scanLabel(); scanStatus('Scanned channels removed.'); reloadKeep(); };
+  $('s-reload').onclick = function () { deadMap = {}; tempHidden = {}; save('dead', deadMap); closeSettings(); loadPlaylist(true); loadGuide(); };
+  $('s-unscan').onclick = function () { found = []; save('found', found); scanLabel(); focusS($('s-scan')); scanStatus('Scanned channels removed.'); reloadKeep(); };
   function reloadKeep() { var keep = channels[cur] && channels[cur].name; loadPlaylist(false, keep); }
 
   // ---------- keys ----------
@@ -534,11 +563,12 @@
     var k = e.keyCode, used = true;
     if (!$('settings').classList.contains('hidden')) { used = dialogKey($('settings'), k, closeSettings); }
     else if (!$('guide').classList.contains('hidden')) { used = guideKey(k); }
+    else if (!$('list').classList.contains('hidden') && (k === K.RED || k === K.GUIDE)) { closeList(); openGuide(); }
     else if (!$('list').classList.contains('hidden')) { used = listKey(k); }
     else if (k >= 48 && k <= 57) numKey(String(k - 48));
     else if (k === K.UP || k === K.CH_UP || k === K.CH_UP2) tune(cur + 1);
     else if (k === K.DOWN || k === K.CH_DOWN || k === K.CH_DOWN2) tune(cur - 1);
-    else if (k === K.OK) openList();
+    else if (k === K.OK) { if (attempt && attempt.stuck) { attempt.stuck = false; tune(cur); } else openList(); }
     else if (k === K.LEFT || k === K.GREEN) openList();
     else if (k === K.RIGHT || k === K.INFO) showBanner();
     else if (k === K.YELLOW) { if (channels[cur]) toggleFav(channels[cur]); }
@@ -554,10 +584,14 @@
   document.addEventListener('webOSRelaunch', function () { try { PalmSystem.activate(); } catch (e) {} });
 
   // ---------- start ----------
-  function useEntries(entries, from) {
+  function useEntries(entries, from, keep) {
     channels = buildChannels(entries.concat(found.map(function (f) { return { name: f.name, logo: f.logo, group: f.group, url: f.url, ua: '' }; })));
     if (!channels.length) { setStatus('The playlist has no channels.\nBlue opens Settings.', true); return; }
     var last = load('last', null), i = 0;
+    if (keep && attempt && attempt.ch.name === keep && attempt.played) {   // same channel still playing: don't restart it
+      var j = channels.findIndex(function (c) { return c.name === keep; });
+      if (j >= 0) { cur = j; attempt.ch = channels[j]; toast(channels.length + ' channels', 2000); return; }
+    }
     i = Math.max(0, channels.findIndex(shownCh));
     channels.forEach(function (ch, j) { if (ch.name === last && shownCh(ch)) i = j; });
     toast(channels.length + ' channels' + (from ? ' from ' + from : ''), 2500);
@@ -566,15 +600,15 @@
   function loadPlaylist(announce, keep) {
     if (keep) save('last', keep);
     var url = load('playlistUrl', '');
-    if (!url) return useEntries(parseM3U(window.BUILTIN_M3U), announce ? 'the built-in list' : '');
+    if (!url) return useEntries(parseM3U(window.BUILTIN_M3U), announce ? 'the built-in list' : '', keep);
     setStatus('Loading playlist…', false);
     fetch(url).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); }).then(function (t) {
       var entries = parseM3U(t);
       if (!entries.length) throw new Error('no channels in it');
-      useEntries(entries, 'your playlist');
+      useEntries(entries, 'your playlist', keep);
     }).catch(function (e) {
-      toast('Couldn’t load the playlist (' + e.message + '). Using the built-in channels.', 4000);
-      useEntries(parseM3U(window.BUILTIN_M3U), '');
+      useEntries(parseM3U(window.BUILTIN_M3U), '', keep);
+      toast('Couldn’t load the playlist (' + e.message + '). Using the built-in channels.', 5000);   // after the channel-count toast
     });
   }
   try { $('ver').textContent = JSON.parse(window.PalmSystem && PalmSystem.appInfo || '{}').version || '1.0.0'; } catch (e) { $('ver').textContent = '1.0.0'; }
