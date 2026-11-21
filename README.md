@@ -10,11 +10,11 @@ An IPTV player for LG webOS TVs: full-screen live channels in 1080p, made for th
 
 Built in (all free and legal, official streams only):
 - **Philippines & regional**: Abante TV, Bilyonaryo News, CCTN 47, FilAmTV, Hope Channel, INC TV, INC Radio, InTravel,
-  Living Asia, Mindanow, MNB World, Premier Sports, TAP Sports, SMNI, Vegas Life TV, Retroclub, Tele Posadas…
+  Living Asia, Mindanow, Premier Sports, TAP Sports, SMNI, Vegas Life TV, Retroclub…
 - **English movies**: AMC Thrillers, Hallmark Movies & More, MovieSphere, MyTime Movie Network, Gravitas Movies,
   ARTFLIX Movie Classics, Maverick Black Cinema, The Movie Club, OuterSphere, Wu Tang Collection…
 - **News**: Bloomberg TV / TV+ / Originals, CNN Originals, LiveNOW from FOX, Fox News Radio, NBC News NOW, ABC News Live,
-  Al Jazeera English, Sky News Australia, CNA, DW, Reuters, CGTN, Scripps News, Newsmax, i24NEWS, WION, Arirang.
+  Al Jazeera English, CNA, DW, Reuters, CGTN, Scripps News, Newsmax, i24NEWS, WION, Arirang.
 
 **Scan for new English channels** (Settings, Blue): checks iptv-org's public list of English channels from this TV and
 adds the ones that broadcast in English (iptv-org's feed languages), play, and offer 1080p, from established free-TV platforms only. A full scan takes about 6 minutes
@@ -36,7 +36,8 @@ Philippine channels don't publish any.
 ## Picture quality
 
 The app reads each channel's quality list and starts straight on **1080p** (or the best the channel offers, some only
-go to 720p); the banner shows the resolution. A channel that doesn't play is **hidden** (list, ▲▼, numbers) and tried
+go to 720p); the banner shows the resolution. Nothing plays below **720p**: such streams are skipped (a backup source is
+tried) and channels that only exist below 720p aren't included. A channel that doesn't play is **hidden** (list, ▲▼, numbers) and tried
 again after a day, so the list only shows channels that work.
 
 ## Remote

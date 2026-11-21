@@ -116,7 +116,7 @@
   // ---------- quality: start on the best stream up to 1080p ----------
   // The TV's player (and hls.js) start low (240-360p) and climb slowly, some channels never got past 360p.
   // So read the master playlist and pick the variant ourselves: 1080p if offered, else the highest below it.
-  var MAX_H = 1080;
+  var MAX_H = 1080, MIN_H = 720;   // play up to 1080p; never below 720p
   function bestIndex(heights) {
     var best = -1;
     heights.forEach(function (h, i) { if (h && h <= MAX_H && (best < 0 || h > heights[best])) best = i; });
@@ -158,7 +158,8 @@
       hls.on(Hls.Events.ERROR, function (ev, d) { if (d.fatal && tok === tuneTok) next(); });
       hls.on(Hls.Events.MANIFEST_PARSED, function (ev, d) {
         if (tok !== tuneTok) return;
-        var bi = bestIndex((d.levels || []).map(function (l) { return l.height || 0; }));
+        var hs = (d.levels || []).map(function (l) { return l.height || 0; }), bi = bestIndex(hs);
+        if (bi >= 0 && hs[bi] && hs[bi] < MIN_H) return next();      // below 720p
         if (bi >= 0) { hls.startLevel = bi; hls.autoLevelCapping = bi; hls.nextLevel = bi; }   // start at 1080p, never above
         play();
       });
@@ -169,6 +170,7 @@
     if (!/\.m3u8(\?|$)/i.test(s.url)) { video.src = s.url; return play(); }
     resolveVariant(s.url).then(function (v) {
       if (tok !== tuneTok) return;
+      if (v.h && v.h < MIN_H) return next();                        // best this source offers is below 720p: next source
       // audio in its own stream: a single video variant would be silent, so hls.js (with the audio) at that quality
       if (v.separateAudio && window.Hls && Hls.isSupported()) return viaHls(s.url);
       video.src = v.url;
@@ -611,7 +613,7 @@
       toast('Couldn’t load the playlist (' + e.message + '). Using the built-in channels.', 5000);   // after the channel-count toast
     });
   }
-  try { $('ver').textContent = JSON.parse(window.PalmSystem && PalmSystem.appInfo || '{}').version || '1.0.0'; } catch (e) { $('ver').textContent = '1.0.0'; }
+  $('ver').textContent = window.APP_VERSION || '';
   window.__iptv = { get channels() { return channels; }, get cur() { return cur; }, get attempt() { return attempt; } };   // (tests)
   loadPlaylist(false);
   loadGuide();

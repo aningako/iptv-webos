@@ -60,6 +60,9 @@ def walk(src, base, dirs, files, skip=()):
 
 def main():
     info = json.load(open(os.path.join(APP_DIR, 'appinfo.json')))
+    # the app shows its version from here (webOS doesn't expose appinfo to the page on webOS 10)
+    with open(os.path.join(APP_DIR, 'version.js'), 'w') as vf:
+        vf.write('window.APP_VERSION = %s;\n' % json.dumps(info['version']))
     app_id, version = info['id'], info['version']
     app_base, pkg_base = 'usr/palm/applications/' + app_id, 'usr/palm/packages/' + app_id
 

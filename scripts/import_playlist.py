@@ -24,6 +24,7 @@ EXCLUDE = [
     ('not available (region-locked from the Philippines)', lambda n, u: n.startswith('Animax Asia India')),
     ('not available (stream offline)', lambda n, u: n.startswith('CLTV 36')),
     ('not available (doesn\'t play on the TV)', lambda n, u: n.startswith('DUST') or n.startswith('CBS News')),
+    ('below 720p (best stream the TV can play)', lambda n, u: n.startswith('MNB World') or n.startswith('Tele Posadas') or n.startswith('Sky News Australia Extra')),
     ('paid news channel restreamed by an unauthorized OTT/IPTV service', lambda n, u: any(h in u for h in ('aynaott.com', 'antik.sk', 'freem3u.xyz', 'smartplaytv.in', 'ioapk.com'))),
 ]
 
