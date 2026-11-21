@@ -17,13 +17,21 @@ Built in (all free and legal, official streams only):
   Al Jazeera English, Sky News Australia, CNA, DW, Reuters, CGTN, Scripps News, Newsmax, i24NEWS, WION, Arirang.
 
 **Scan for new English channels** (Settings, Blue): checks iptv-org's public list of English channels from this TV and
-adds the ones that play and offer 1080p, from established free-TV platforms only. A full scan takes about 6 minutes
+adds the ones that broadcast in English (iptv-org's feed languages), play, and offer 1080p, from established free-TV platforms only. A full scan takes about 6 minutes
 and usually finds a few hundred channels (movies, news, documentaries, sports, kids, music, cooking…).
 
 Not included, on purpose: paid channels that only circulate as unauthorized restreams (CNN, Fox News Channel, BBC News,
 HBO, AXN, beIN Sports 1-…), streams that fake a US location to get round regional licensing (Pluto TV through jmp2.uk),
 and channels that don't play from the Philippines. Duplicates (e.g. four InTravel feeds) become **one channel with
 backup sources**: if one fails, the next is tried.
+
+## Programme guide
+
+The banner shows **Now / Next** for the channel you're watching, and Red (or the remote's Guide button) opens the
+guide for all channels, in Philippine time. Listings come from public XMLTV sources (Samsung TV Plus and Plex via
+i.mjh.nz, epgshare01), squeezed into a small `guide/guide.json` by a GitHub Action twice a day
+(`.github/workflows/guide.yml`, `tools/build_guide.py`). Most movie and news channels have listings; the local
+Philippine channels don't publish any.
 
 ## Picture quality
 
@@ -40,8 +48,8 @@ again after a day, so the list only shows channels that work.
 | OK, ◀, Green | Channel list (◀ ▶ switch category, OK watch) |
 | ▶, Info | Channel info |
 | Yellow | Add / remove favorite (★ Favorites category) |
-| Blue | Settings (playlist URL, scan for new channels) |
-| Red | Reload the playlist |
+| Blue | Settings (playlist URL, scan for new channels, reload) |
+| Red, Guide | Programme guide (Now / Next for every channel, Philippine time) |
 | Back twice | Exit |
 
 The last channel you watched starts when you open the app.

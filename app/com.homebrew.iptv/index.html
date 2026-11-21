@@ -17,15 +17,24 @@
   <div class="info">
     <div class="top"><span id="b-num"></span><span id="b-name"></span><span id="b-fav" class="fav hidden">★</span></div>
     <div class="sub"><span id="b-group"></span><span id="b-state"></span></div>
+    <div id="b-epg" class="hidden"><div class="now"><span class="tm" id="e-now-tm"></span><span id="e-now"></span></div>
+      <div class="bar"><i id="e-bar"></i></div><div class="next"><span class="tm" id="e-next-tm"></span><span id="e-next"></span></div></div>
   </div>
   <div id="b-clock"></div>
-  <div class="keys">OK channels · ▲▼ change · 0-9 number · ■ Yellow favorite · ■ Blue settings</div>
+  <div class="keys">OK channels · ■ Red guide · ▲▼ change · 0-9 number · ■ Yellow favorite · ■ Blue settings</div>
 </div>
 
 <div id="list" class="hidden">
   <div class="head"><span class="arrow">◀</span><span id="l-group"></span><span class="arrow">▶</span></div>
   <div id="l-items"></div>
   <div class="foot">▲▼ choose · OK watch · ◀▶ category · Yellow ★ favorite · Back close</div>
+</div>
+
+<div id="guide" class="hidden">
+  <div class="head"><span class="arrow">◀</span><span id="g-group"></span><span class="arrow">▶</span><span id="g-clock"></span></div>
+  <div class="cols"><span>Channel</span><span>Now</span><span>Next</span></div>
+  <div id="g-items"></div>
+  <div class="foot">▲▼ choose · OK watch · ◀▶ category · Back close · times are Philippine time</div>
 </div>
 
 <div id="numentry" class="hidden"></div>
@@ -42,6 +51,7 @@
   <div class="buttons">
     <button id="s-scan" class="f" data-row="2">Scan for new English channels</button>
     <button id="s-unscan" class="f hidden" data-row="2">Remove scanned channels</button>
+    <button id="s-reload" class="f" data-row="2">Reload channels</button>
   </div>
   <div id="scan-status"></div>
   <p class="credits">IPTV Player · Created by aning and Cipher Amir with Claude · v<span id="ver"></span></p>

@@ -32,7 +32,7 @@ html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; backgro
 @keyframes twinkle { 0%, 100% { opacity: .25; transform: scale(.7); } 50% { opacity: 1; transform: scale(1.1); } }
 
 /* channel banner */
-#banner { position: absolute; left: 60px; right: 60px; bottom: 50px; height: 170px; display: flex; align-items: center; gap: 30px;
+#banner { position: absolute; left: 60px; right: 60px; bottom: 50px; min-height: 170px; display: flex; align-items: center; gap: 30px;
   padding: 20px 34px; background: var(--panel); border: 1px solid var(--line); border-radius: 24px; }
 #banner .logo { width: 210px; height: 120px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,.95); border-radius: 14px; flex: none; }
 #banner .logo img { max-width: 190px; max-height: 100px; }
@@ -89,3 +89,37 @@ button.primary { background: var(--ph-red); border-color: #ff4d63; }
   background: linear-gradient(90deg, var(--ph-yellow) 0 6%, var(--ph-blue) 6% 53%, var(--ph-red) 53%); border-radius: 24px 24px 0 0; }
 #list::before { border-radius: 0; } #settings .box { position: relative; } #banner { overflow: visible; }
 #scan-status { margin-top: 16px; font-size: 24px; color: var(--muted); min-height: 30px; }
+
+/* now / next in the banner */
+#b-epg { margin-top: 12px; font-size: 26px; max-width: 1180px; }
+#b-epg .now, #b-epg .next { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#b-epg .next { color: var(--muted); margin-top: 6px; }
+#b-epg .tm { color: var(--ph-yellow); margin-right: 14px; font-weight: bold; }
+#b-epg .bar { height: 6px; background: rgba(255,255,255,.15); border-radius: 3px; margin: 8px 0 2px; max-width: 700px; }
+#b-epg .bar i { display: block; height: 100%; width: 0; border-radius: 3px; background: linear-gradient(90deg, var(--ph-blue), var(--ph-red)); }
+
+/* guide */
+#guide { position: absolute; inset: 0; background: rgba(3, 12, 36, .96); display: flex; flex-direction: column; }
+#guide::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 6px;
+  background: linear-gradient(90deg, var(--ph-yellow) 0 6%, var(--ph-blue) 6% 53%, var(--ph-red) 53%); }
+#guide .head { display: flex; align-items: center; gap: 28px; padding: 40px 70px 14px; font-size: 40px; font-weight: bold; }
+#guide .arrow { color: var(--muted); font-size: 28px; }
+#g-clock { margin-left: auto; font-size: 32px; }
+#g-clock small { color: var(--muted); font-size: 22px; font-weight: normal; margin-left: 8px; }
+#guide .cols { display: grid; grid-template-columns: 520px 1fr 560px; gap: 24px; padding: 0 70px 10px; color: var(--muted); font-size: 22px; }
+#g-items { flex: 1; overflow: hidden; padding: 0 50px; }
+.grow { display: grid; grid-template-columns: 520px 1fr 560px; gap: 24px; align-items: center; height: 104px; padding: 0 20px;
+  margin-bottom: 8px; border-radius: 16px; font-size: 27px; background: rgba(255,255,255,.04); }
+.grow .ch { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.grow .n { width: 56px; text-align: right; color: var(--ph-yellow); font-weight: bold; flex: none; }
+.grow .lg { width: 96px; height: 58px; background: rgba(255,255,255,.92); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex: none; }
+.grow .lg img { max-width: 86px; max-height: 48px; } .grow .lg b { color: var(--ph-blue); font-size: 24px; }
+.grow .nm, .grow .pt, .grow .pn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.grow .pt small, .grow .pn small { display: block; color: var(--ph-yellow); font-size: 21px; }
+.grow .pn { color: var(--muted); }
+.grow .pbar { height: 5px; background: rgba(255,255,255,.15); border-radius: 3px; margin-top: 6px; }
+.grow .pbar i { display: block; height: 100%; background: linear-gradient(90deg, var(--ph-blue), var(--ph-red)); border-radius: 3px; }
+.grow.cur .nm { color: var(--ph-yellow); }
+.grow.focus { background: linear-gradient(90deg, var(--ph-blue), #0a4fd6); box-shadow: 0 0 0 3px var(--ph-yellow) inset; }
+.grow .none { color: #7f8bab; font-style: italic; }
+#guide .foot { padding: 14px 70px 26px; font-size: 21px; color: var(--muted); border-top: 1px solid var(--line); }

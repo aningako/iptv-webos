@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  var K = { LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, OK: 13, BACK: 461, ESC: 27, RED: 403, GREEN: 404, YELLOW: 405, BLUE: 406,
+  var K = { LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, OK: 13, BACK: 461, ESC: 27, RED: 403, GREEN: 404, YELLOW: 405, BLUE: 406, GUIDE: 458,
     CH_UP: 33, CH_DOWN: 34, CH_UP2: 427, CH_DOWN2: 428, PLAY: 415, PAUSE: 19, PLAYPAUSE: 463, INFO: 457 };
   var NO_DATA_MS = 15000;   // a stream with no picture after this long is given up (and unloaded, see unload())
 
@@ -26,7 +26,7 @@
       var l = lines[i].trim();
       if (!l) continue;
       if (l.indexOf('#EXTINF') === 0) {
-        cur = { name: l.slice(l.lastIndexOf(',') + 1).trim(), logo: attr(l, 'tvg-logo'), group: attr(l, 'group-title'), ua: '' };
+        cur = { name: l.slice(l.lastIndexOf(',') + 1).trim(), logo: attr(l, 'tvg-logo'), group: attr(l, 'group-title'), id: attr(l, 'tvg-id'), ua: '' };
       } else if (l.indexOf('#EXTVLCOPT:http-user-agent=') === 0 && cur) {
         cur.ua = l.split('=').slice(1).join('=');
       } else if (l.charAt(0) !== '#' && cur) {
@@ -208,6 +208,89 @@
   function tickClock() { var c = $('b-clock'); if (c) c.innerHTML = manilaTime() + '<small>Manila</small>'; }
   setInterval(tickClock, 15000); tickClock();
 
+  // ---------- programme guide ----------
+  // guide/guide.json is rebuilt every day on GitHub (tools/build_guide.py) from public XMLTV listings, keyed by the
+  // same channel-name key the app uses (normKey); times are UTC seconds, shown here in Philippine time.
+  var GUIDE_URL = 'https://raw.githubusercontent.com/aningako/iptv-webos/main/guide/guide.json';
+  var epg = {};
+  function loadGuide() {
+    fetchText(GUIDE_URL + '?t=' + Math.floor(Date.now() / 3600e3), 60000).then(function (t) {
+      epg = (JSON.parse(t).channels) || {};
+      if (!$('banner').classList.contains('hidden')) showEpg();
+      if (!$('guide').classList.contains('hidden')) renderGuide();
+    }).catch(function () {});
+  }
+  function nowNext(ch) {
+    var p = ch && (epg[normKey(ch.name)] || ch.sources.map(function (s) { return epg[normKey(s.label)]; }).filter(Boolean)[0]);
+    if (!p) return null;
+    var t = Date.now() / 1000, now = null, next = null;
+    for (var i = 0; i < p.length; i++) {
+      if (p[i][0] <= t && t < p[i][1]) { now = p[i]; next = p[i + 1] || null; break; }
+      if (p[i][0] > t) { next = p[i]; break; }
+    }
+    return (now || next) ? { now: now, next: next } : null;
+  }
+  function span(p) { return manilaTime(new Date(p[0] * 1000)) + ' – ' + manilaTime(new Date(p[1] * 1000)); }
+  function pct(p) { var t = Date.now() / 1000; return Math.max(0, Math.min(100, (t - p[0]) / (p[1] - p[0]) * 100)); }
+  function showEpg() {
+    var nn = nowNext(channels[cur]), box = $('b-epg');
+    if (!nn) return box.classList.add('hidden');
+    $('e-now-tm').textContent = nn.now ? 'NOW ' + span(nn.now) : '';
+    $('e-now').textContent = nn.now ? nn.now[2] : '';
+    $('e-bar').style.width = (nn.now ? pct(nn.now) : 0) + '%';
+    $('e-next-tm').textContent = nn.next ? 'NEXT ' + manilaTime(new Date(nn.next[0] * 1000)) : '';
+    $('e-next').textContent = nn.next ? nn.next[2] : '';
+    box.classList.remove('hidden');
+  }
+  var gg = 0, gf = 0, GROWS = 7;
+  function openGuide() {
+    closeList(); groups = groupList(); if (gg >= groups.length) gg = 0;
+    var items = guideItems(), i = items.indexOf(channels[cur]); gf = i >= 0 ? i : 0;
+    $('banner').classList.add('hidden'); $('guide').classList.remove('hidden'); renderGuide();
+    if (!Object.keys(epg).length) loadGuide();
+  }
+  function closeGuide() { $('guide').classList.add('hidden'); }
+  function guideItems() {
+    var g = groups[gg] || 'All channels', ok = channels.filter(shownCh);
+    if (g === 'All channels') return ok;
+    if (g === '★ Favorites') return ok.filter(isFav);
+    return ok.filter(function (ch) { return ch.groups.indexOf(g) >= 0; });
+  }
+  function renderGuide() {
+    var items = guideItems();
+    $('g-group').textContent = 'Guide · ' + groups[gg] + ' (' + items.length + ')';
+    $('g-clock').innerHTML = manilaTime() + '<small>Manila</small>';
+    if (gf >= items.length) gf = Math.max(0, items.length - 1);
+    var first = Math.max(0, Math.min(gf - 2, items.length - GROWS)), html = '';
+    for (var i = first; i < Math.min(items.length, first + GROWS); i++) {
+      var ch = items[i], nn = nowNext(ch);
+      html += '<div class="grow' + (i === gf ? ' focus' : '') + (ch === channels[cur] ? ' cur' : '') + '" data-i="' + i + '">' +
+        '<div class="ch"><span class="n">' + ch.num + '</span><span class="lg">' + logoHtml(ch) + '</span><span class="nm">' + esc(ch.name) + '</span></div>' +
+        (nn && nn.now ? '<div class="pt"><small>' + span(nn.now) + '</small>' + esc(nn.now[2]) + '<div class="pbar"><i style="width:' + pct(nn.now) + '%"></i></div></div>'
+          : '<div class="pt none">' + (nn ? 'Off air' : 'No guide information') + '</div>') +
+        (nn && nn.next ? '<div class="pn"><small>' + manilaTime(new Date(nn.next[0] * 1000)) + '</small>' + esc(nn.next[2]) + '</div>' : '<div class="pn"></div>') + '</div>';
+    }
+    $('g-items').innerHTML = html || '<div class="grow"><span class="none">No channels here.</span></div>';
+    [].forEach.call($('g-items').querySelectorAll('.grow[data-i]'), function (el) {
+      el.onclick = function () { gf = +el.getAttribute('data-i'); guideKey(K.OK); };
+      el.onmousemove = function () { var i = +el.getAttribute('data-i'); if (i !== gf) { gf = i; renderGuide(); } };
+    });
+  }
+  function guideKey(k) {
+    var items = guideItems(), n = Math.max(1, items.length);
+    if (k === K.UP) { gf = (gf - 1 + n) % n; renderGuide(); }
+    else if (k === K.DOWN) { gf = (gf + 1) % n; renderGuide(); }
+    else if (k === K.CH_UP || k === K.CH_UP2) { gf = Math.max(0, gf - GROWS); renderGuide(); }
+    else if (k === K.CH_DOWN || k === K.CH_DOWN2) { gf = Math.min(items.length - 1, gf + GROWS); renderGuide(); }
+    else if (k === K.LEFT || k === K.RIGHT) { gg = (gg + (k === K.RIGHT ? 1 : -1) + groups.length) % groups.length; gf = 0; renderGuide(); }
+    else if (k === K.OK) { var ch = items[gf]; if (ch) { closeGuide(); tune(channels.indexOf(ch)); } }
+    else if (k === K.BACK || k === K.ESC || k === K.RED || k === K.GUIDE) closeGuide();
+    else return false;
+    return true;
+  }
+  setInterval(function () { if (!$('guide').classList.contains('hidden')) renderGuide(); if (!$('banner').classList.contains('hidden')) showEpg(); }, 30000);
+  setInterval(loadGuide, 3 * 3600e3);
+
   // ---------- on-screen info ----------
   function setStatus(text, error) {
     var st = $('status');
@@ -223,7 +306,7 @@
     $('b-group').textContent = ch.groups.join(' · ');
     $('b-fav').classList.toggle('hidden', !isFav(ch));
     var box = document.querySelector('#banner .logo'); box.innerHTML = logoHtml(ch);
-    tickClock();
+    tickClock(); showEpg();
     $('banner').classList.remove('hidden');
     clearTimeout(bannerTm); bannerTm = setTimeout(function () { $('banner').classList.add('hidden'); }, 6000);
   }
@@ -355,6 +438,9 @@
   //  - answer from this TV right now, and offer 1080p.
   // Found channels are saved on the TV and added to the list (group from the playlist, e.g. Movies, News).
   var SCAN_LISTS = ['https://iptv-org.github.io/iptv/languages/eng.m3u'];
+  // iptv-org's feed database: the broadcast language of every channel feed (tvg-id "Channel.us@Feed")
+  var SCAN_FEEDS = 'https://iptv-org.github.io/api/feeds.json';
+  var NOT_ENGLISH_NAME = /espa[nñ]ol|latino|latin america|brasil|brazil|portugu|fran[cç]ais|deutsch|arab|hindi|tamil|telugu|bangla|urdu|turk|korea|japan|chinese|mandarin|cantonese|italia|polska|poland|russia|cine |canal |tele |tv5|amor\b|\bfm\b/i;
   var SCAN_TRUST = /^https:\/\/([a-z0-9-]+\.)*(amagi\.tv|wurl\.tv|wurl\.com|cloudfront\.net|akamaized\.net|edgesuite\.net|roku\.com|bloomberg\.com|getaj\.net|cbsnstream\.cbsnews\.com|samsungtvplus\.com|xumo\.com|tubi\.video|plex\.tv)\//i;
   var SCAN_BLOCK = /jmp2\.uk|aynaott|antik\.sk|freem3u|smartplaytv|ioapk|\.shop\/|\.xyz\/|\.top\/|github/i;
   // already removed because they don't play here (checked on the TV)
@@ -362,13 +448,24 @@
   // paid networks: only ever restreamed without permission, whatever server they come from
   var SCAN_PAID = /^(cnn international|cnn$|cnn hd|fox news channel|fox news$|bbc news|bbc world|hbo|cinemax|star movies|axn|animax|bein sports \d|sky sports|sky news$|showtime|starz|disney channel|cartoon network|nickelodeon|discovery channel|national geographic)/i;
   var badKeys = {}; SCAN_BAD.forEach(function (n) { badKeys[normKey(n)] = 1; });
-  var found = load('found', []).filter(function (f) { return !SCAN_PAID.test(f.name) && !badKeys[normKey(f.name)]; }), scanning = null;
+  var found = load('found', []).filter(function (f) { return f.v === 2 && !SCAN_PAID.test(f.name) && !badKeys[normKey(f.name)]; }), scanning = null;
+  save('found', found);
   function scanLabel() {
     $('s-scan').textContent = scanning ? 'Stop scanning' : 'Scan for new English channels';
     $('s-unscan').classList.toggle('hidden', !found.length || !!scanning);
     $('s-unscan').textContent = 'Remove scanned channels (' + found.length + ')';
   }
   function scanStatus(t) { $('scan-status').textContent = t || ''; }
+  // English only: every language listed for the channel's feed must be English (feeds without a language are skipped)
+  function englishFeeds(feeds) {
+    var map = {};
+    (feeds || []).forEach(function (f) { if (f && f.channel) map[f.channel + '@' + f.id] = f.languages || []; if (f && f.channel && f.is_main) map[f.channel] = f.languages || []; });
+    return function (tvgId) {
+      if (!tvgId) return false;
+      var langs = map[tvgId] || map[tvgId.split('@')[0]];
+      return !!(langs && langs.length && langs.every(function (l) { return l === 'eng'; }));
+    };
+  }
   function has1080(text) { return (text.match(/RESOLUTION=\d+x(\d+)/g) || []).some(function (r) { return +r.split('x')[1] >= 1080; }); }
   function fetchText(url, ms) {
     var ctl = window.AbortController ? new AbortController() : null, tm = setTimeout(function () { if (ctl) ctl.abort(); }, ms);
@@ -382,9 +479,15 @@
     found.forEach(function (f) { have[normKey(f.name)] = 1; });
     SCAN_BAD.forEach(function (n) { have[normKey(n)] = 1; });
     scanLabel(); scanStatus('Downloading the channel list…');
-    Promise.all(SCAN_LISTS.map(function (u) { return fetchText(u, 30000).then(parseM3U, function () { return []; }); })).then(function (lists) {
-      var seen = {}, cands = [];
+    var isEnglish = null;
+    fetchText(SCAN_FEEDS, 60000).then(function (t) { isEnglish = englishFeeds(JSON.parse(t)); }, function () {}).then(function () {
+      if (!isEnglish) throw new Error('feeds');
+      scanStatus('Downloading the channel list…');
+      return Promise.all(SCAN_LISTS.map(function (u) { return fetchText(u, 30000).then(parseM3U, function () { return []; }); }));
+    }).then(function (lists) {
+      var seen = {}, cands = [], notEn = 0;
       [].concat.apply([], lists).forEach(function (e) {
+        if (!isEnglish(e.id) || NOT_ENGLISH_NAME.test(e.name)) { notEn++; return; }   // not an English channel
         var key = normKey(e.name);
         if (have[key] || seen[key] || e.ua || !SCAN_TRUST.test(e.url) || SCAN_BLOCK.test(e.url) || SCAN_PAID.test(e.name)) return;
         if (/geo-blocked|not 24\/7/i.test(e.name) || !/^[\x20-\x7e]+$/.test(e.name)) return;   // blocked/part-time or not Latin-script
@@ -397,7 +500,7 @@
         var e = cands[i++];
         return fetchText(e.url, 6000).then(function (t) {
           if (t.indexOf('#EXTM3U') >= 0 && has1080(t)) {
-            found.push({ name: baseName(e.name), logo: e.logo, group: (e.group || 'Other').split(';')[0], url: e.url });
+            found.push({ name: baseName(e.name), logo: e.logo, group: (e.group || 'Other').split(';')[0], url: e.url, id: e.id, v: 2 });
             save('found', found); added++;
           }
         }).catch(function () {}).then(function () {
@@ -410,9 +513,10 @@
         scanStatus((job.stop ? 'Stopped. ' : 'Done. ') + 'Added ' + added + ' channel' + (added === 1 ? '' : 's') + (added ? ' (at the end of the list).' : '.'));
         if (added) reloadKeep();
       });
-    }).catch(function () { scanning = null; scanLabel(); scanStatus('Couldn’t download the channel list. Check the internet connection.'); });
+    }).catch(function () { scanning = null; scanLabel(); scanStatus('Couldn’t download the channel lists. Check the internet connection.'); });
   }
   $('s-scan').onclick = startScan;
+  $('s-reload').onclick = function () { closeSettings(); loadPlaylist(true); loadGuide(); };
   $('s-unscan').onclick = function () { found = []; save('found', found); scanLabel(); scanStatus('Scanned channels removed.'); reloadKeep(); };
   function reloadKeep() { var keep = channels[cur] && channels[cur].name; loadPlaylist(false, keep); }
 
@@ -429,6 +533,7 @@
   document.addEventListener('keydown', function (e) {
     var k = e.keyCode, used = true;
     if (!$('settings').classList.contains('hidden')) { used = dialogKey($('settings'), k, closeSettings); }
+    else if (!$('guide').classList.contains('hidden')) { used = guideKey(k); }
     else if (!$('list').classList.contains('hidden')) { used = listKey(k); }
     else if (k >= 48 && k <= 57) numKey(String(k - 48));
     else if (k === K.UP || k === K.CH_UP || k === K.CH_UP2) tune(cur + 1);
@@ -438,7 +543,7 @@
     else if (k === K.RIGHT || k === K.INFO) showBanner();
     else if (k === K.YELLOW) { if (channels[cur]) toggleFav(channels[cur]); }
     else if (k === K.BLUE) openSettings();
-    else if (k === K.RED) loadPlaylist(true);
+    else if (k === K.RED || k === K.GUIDE) openGuide();
     else if (k === K.BACK || k === K.ESC) {
       if (!$('banner').classList.contains('hidden')) { $('banner').classList.add('hidden'); }
       if (Date.now() - backAt < 2000) return exitApp();
@@ -475,4 +580,5 @@
   try { $('ver').textContent = JSON.parse(window.PalmSystem && PalmSystem.appInfo || '{}').version || '1.0.0'; } catch (e) { $('ver').textContent = '1.0.0'; }
   window.__iptv = { get channels() { return channels; }, get cur() { return cur; }, get attempt() { return attempt; } };   // (tests)
   loadPlaylist(false);
+  loadGuide();
 })();
