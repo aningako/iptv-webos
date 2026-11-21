@@ -57,7 +57,7 @@ The last channel you watched starts when you open the app.
 ## Build
 
 ```sh
-python3 scripts/import_playlist.py iptv-PH.m3u nsfw.m3u playlists/english-movies.m3u playlists/english-news.m3u
+python3 scripts/import_playlist.py iptv-PH.m3u more-channels.m3u playlists/english-movies.m3u playlists/english-news.m3u
                                                            # built-in channels + bundled logos
 python3 scripts/make_icons.py                              # only if you change the icon
 python3 scripts/build_ipk.py                               # -> releases/com.homebrew.iptv_<version>_all.ipk
