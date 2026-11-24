@@ -30,8 +30,13 @@ def norm_key(n):
     return re.sub(r'[^a-z0-9]+', '', k)
 
 
-def wanted_keys():
-    keys = set()
+def wanted():
+    # The app looks up the guide by norm_key(channel name), so programmes are stored under that app key.
+    # But the same name (e.g. "AMC Thrillers") exists on several providers with different schedules, so we
+    # also keep each channel's tvg-id (iptv-org id, e.g. AMCThrillers.us) and match the EPG by that exact id
+    # first - it points at the feed the stream actually plays - falling back to the name only when no id matches.
+    id_to_key = {}   # exact XMLTV channel id  -> app key (norm_key of the name)
+    keys = set()     # app keys, for the name fallback
     for src in CHANNEL_LISTS:
         try:
             text = open(src, encoding='utf-8').read() if os.path.exists(src) else \
@@ -39,10 +44,18 @@ def wanted_keys():
         except Exception as e:
             print('channel list failed:', src, e); continue
         for line in text.splitlines():
-            if line.startswith('#EXTINF'):
-                keys.add(norm_key(line.rsplit(',', 1)[-1].strip()))
+            if not line.startswith('#EXTINF'):
+                continue
+            key = norm_key(line.rsplit(',', 1)[-1].strip())
+            if not key:
+                continue
+            keys.add(key)
+            m = re.search(r'tvg-id="([^"]*)"', line)
+            tvg = (m.group(1).split('@')[0].strip() if m else '')   # "AMCThrillers.us@SD" -> "AMCThrillers.us"
+            if tvg:
+                id_to_key.setdefault(tvg, key)
     keys.discard('')
-    return keys
+    return id_to_key, keys
 
 
 def xmltv_time(s):
@@ -65,7 +78,7 @@ def _timegm(t):
     return calendar.timegm(t)
 
 
-def read_source(url, keys, guide, now):
+def read_source(url, id_to_key, keys, guide, guide_q, now):
     print('reading', url)
     raw = urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=600)
     stream = gzip.GzipFile(fileobj=raw) if url.endswith('.gz') else raw
@@ -73,17 +86,23 @@ def read_source(url, keys, guide, now):
     def prio(cid):
         cc = (cid or '').rsplit('.', 1)[-1].lower()
         return PRIO.index(cc) if cc in PRIO else len(PRIO)
-    id2key, cand, progs, root = {}, {}, {}, None
+    id2key, cand, progs, root = {}, {}, {}, None   # cand[app_key] = list of (channel id, quality) in this source
     try:
       for ev, el in ET.iterparse(stream, events=('start', 'end')):
         if ev == 'start':
             if root is None: root = el
             continue
         if el.tag == 'channel':
-            for dn in el.findall('display-name'):
-                k = norm_key(dn.text or '')
-                if k in keys and k not in guide:              # first source with a channel wins
-                    cand.setdefault(k, []).append(el.get('id')); id2key[el.get('id')] = k; break
+            cid = el.get('id')
+            ak = q = None
+            if cid in id_to_key:                              # exact tvg-id match: the right feed
+                ak, q = id_to_key[cid], 'id'
+            else:
+                for dn in el.findall('display-name'):         # fall back to matching the name
+                    k = norm_key(dn.text or '')
+                    if k in keys: ak, q = k, 'name'; break
+            if ak:
+                id2key[cid] = ak; cand.setdefault(ak, []).append((cid, q))
             el.clear()
         elif el.tag == 'programme':
             cid = el.get('channel')
@@ -98,28 +117,33 @@ def read_source(url, keys, guide, now):
     except (ET.ParseError, EOFError, OSError) as e:           # cut-off or broken file: keep what was read
         print('  stopped early (%s); keeping what was read' % e)
     chans = added = 0
-    for k, ids in cand.items():                               # per name: best country with real listings
-        for cid in sorted(ids, key=prio):
-            if len(progs.get(cid, [])) >= 2:
-                guide['_new_' + k] = progs[cid]; chans += 1; added += len(progs[cid]); break
-    for k in list(guide):
-        if k.startswith('_new_'):
+    for k, lst in cand.items():
+        # best candidate for this channel: an id match beats a name match, then the preferred country
+        lst.sort(key=lambda t: (0 if t[1] == 'id' else 1, prio(t[0])))
+        for cid, q in lst:
+            if len(progs.get(cid, [])) < 2:
+                continue
+            # keep the best we've seen across sources: first by-id wins; a by-id upgrades an earlier by-name
+            if k in guide_q and not (q == 'id' and guide_q[k] == 'name'):
+                break
             out, last = [], 0
-            for p in sorted(guide.pop(k)):                    # drop overlapping/duplicate entries
+            for p in sorted(progs[cid]):                      # drop overlapping/duplicate entries
                 if p[0] >= last - 60:
                     out.append(p); last = p[1]
-            guide[k[5:]] = out[:PER_CHANNEL]
+            guide[k] = out[:PER_CHANNEL]; guide_q[k] = q
+            chans += 1; added += len(out)
+            break
     print('  channels matched: %d, programmes kept: %d' % (chans, added))
 
 
 def main():
     now = int(time.time())
-    keys = wanted_keys()
-    print('channel names to match:', len(keys))
-    guide = {}
+    id_to_key, keys = wanted()
+    print('channel names to match:', len(keys), '| tvg-ids:', len(id_to_key))
+    guide, guide_q = {}, {}
     for url in SOURCES:
         try:
-            read_source(url, keys, guide, now)
+            read_source(url, id_to_key, keys, guide, guide_q, now)
         except Exception as e:
             print('  source failed:', e)
     fresh = len(guide)
